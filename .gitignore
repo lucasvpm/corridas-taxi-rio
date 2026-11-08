@@ -1,0 +1,29 @@
+# Dependências (cada app instala as suas; são enormes e recriáveis)
+node_modules/
+
+# Saídas de build (geradas a partir do código-fonte)
+dist/
+build/
+coverage/
+
+# Variáveis de ambiente locais (podem conter segredos)
+.env
+.env.*
+!.env.example
+
+# Chaves privadas geradas localmente (exceto as de teste em scripts/test-keys)
+*.pem
+!**/test-keys/*.pem
+
+# Lixo de sistema operacional / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+.claude/
+# Enunciado do desafio (não publicar em repositório aberto)
+*.pdf
+
+# Credenciais do kustomize (Parte 3) — só o .example é versionado
+k8s/**/secrets.env
