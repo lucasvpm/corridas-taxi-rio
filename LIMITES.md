@@ -8,6 +8,7 @@
 - **Retry dentro do worker.** O backoff exponencial (2s→30s) é feito segurando a mensagem no processo antes do nack, o que ocupa um slot do prefetch. Filas de retry com TTL seriam mais robustas. A DLQ não tem ferramenta de reprocessamento; o "shovel" é manual pelo painel.
 - **UI sem testes automatizados.** O CI faz lint e build. O fluxo da UI foi validado manualmente.
 - **Replay idempotente devolve o estado atual**, não o corpo original da resposta.
+- **KEDA: escala sob carga não demonstrada.** O CI valida no kind que o `ScaledObject` fica Ready e que o KEDA cria o HPA do worker (1 a 5 réplicas, alvo de 20 mensagens por réplica). Mas, na carga do k6, o worker nunca deixou a fila acumular (p95 de 9 ms por mensagem), então não houve gatilho para escalar. Para demonstrar seria preciso gerar backlog de propósito (por exemplo, um burst de publicações maior que a vazão de 1 réplica, ou um atraso artificial no handler) e observar `kubectl get hpa -w`.
 - **Observabilidade no Kubernetes.** Os manifests não sobem Prometheus nem Jaeger no kind (o OTel fica desligado lá). A regra está pronta como `PrometheusRule`, para um cluster com Prometheus Operator.
 - **Sem TLS nem autenticação forte** em Redis e Mongo, e senhas de desenvolvimento no `docker-compose.yml` (marcadas como `*_dev_only`). No k8s as credenciais vêm de Secret gerado fora do repositório.
 
