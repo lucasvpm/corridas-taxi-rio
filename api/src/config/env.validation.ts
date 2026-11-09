@@ -1,3 +1,5 @@
+// Necessário para o class-transformer ler os tipos (design:type) mesmo fora do Nest (ex.: testes).
+import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { IsIn, IsInt, IsString, Min, validateSync } from 'class-validator';
 
@@ -6,47 +8,51 @@ import { IsIn, IsInt, IsString, Min, validateSync } from 'class-validator';
  * docker compose exposta em localhost, para que `npm run start:dev` funcione sem .env.
  * Todas as credenciais default são de DESENVOLVIMENTO.
  */
+// Os tipos explícitos (: number / : string) NÃO são redundantes: o emitDecoratorMetadata só
+// registra o tipo quando ele está anotado, e é esse metadado que o enableImplicitConversion usa
+// para converter "3000" (string do process.env) em número. Sem a anotação, o PORT vindo do
+// docker compose era rejeitado pelo @IsInt (bug pego pelo job de stack no CI).
 export class EnvVars {
   @IsInt()
   @Min(1)
-  PORT = 3000;
+  PORT: number = 3000;
 
   @IsString()
-  DB_HOST = 'localhost';
+  DB_HOST: string = 'localhost';
 
   @IsInt()
-  DB_PORT = 3306;
+  DB_PORT: number = 3306;
 
   @IsString()
-  DB_USER = 'corridas';
+  DB_USER: string = 'corridas';
 
   @IsString()
-  DB_PASSWORD = 'corridas_dev_only';
+  DB_PASSWORD: string = 'corridas_dev_only';
 
   @IsString()
-  DB_NAME = 'corridas';
+  DB_NAME: string = 'corridas';
 
   @IsString()
-  REDIS_URL = 'redis://localhost:6379';
+  REDIS_URL: string = 'redis://localhost:6379';
 
   @IsString()
-  AMQP_URL = 'amqp://corridas:corridas_dev_only@localhost:5672';
+  AMQP_URL: string = 'amqp://corridas:corridas_dev_only@localhost:5672';
 
   @IsString()
-  JWT_PUBLIC_KEY_PATH = '../scripts/test-keys/public.pem';
+  JWT_PUBLIC_KEY_PATH: string = '../scripts/test-keys/public.pem';
 
   @IsString()
-  JWT_ISSUER = 'corridas-test-issuer';
+  JWT_ISSUER: string = 'corridas-test-issuer';
 
   @IsString()
-  JWT_AUDIENCE = 'corridas-api';
+  JWT_AUDIENCE: string = 'corridas-api';
 
   @IsInt()
   @Min(1)
-  CACHE_TTL_SECONDS = 3600;
+  CACHE_TTL_SECONDS: number = 3600;
 
   @IsIn(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-  LOG_LEVEL = 'info';
+  LOG_LEVEL: string = 'info';
 }
 
 /**
