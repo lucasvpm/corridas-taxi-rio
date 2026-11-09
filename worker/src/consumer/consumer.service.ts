@@ -35,7 +35,19 @@ import {
 import { CorridaEventHandler } from './corrida-event.handler';
 
 const tracer = trace.getTracer('corridas-worker');
-const RETRY_BACKOFF_MS = 1000;
+const RETRY_BASE_MS = 2000;
+const RETRY_MAX_MS = 30000;
+
+/**
+ * Backoff exponencial pelo número de entregas anteriores (header x-delivery-count da fila quorum):
+ * 2s, 4s, 8s, 16s, 30s → ~1 min de tolerância a uma dependência fora antes de ir para a DLQ.
+ */
+export function retryDelayMs(deliveryCount: number): number {
+  return Math.min(
+    RETRY_BASE_MS * 2 ** Math.max(0, deliveryCount),
+    RETRY_MAX_MS,
+  );
+}
 
 /** Converte um valor de header AMQP (string ou Buffer) em string. */
 function headerAsString(value: unknown): string | null {
@@ -49,7 +61,8 @@ function headerAsString(value: unknown): string | null {
  * Decide o destino de cada mensagem:
  * - sucesso (inclusive duplicada)          → ack
  * - malformada (não adianta tentar de novo) → nack sem requeue → DLQ
- * - erro transitório (Redis/Mongo fora)     → nack com requeue; após 5 entregas a fila quorum manda para a DLQ
+ * - erro transitório (Redis/Mongo fora)     → backoff exponencial + nack com requeue;
+ *                                             após 5 entregas a fila quorum manda para a DLQ
  */
 @Injectable()
 export class ConsumerService implements OnModuleInit, OnApplicationShutdown {
@@ -114,8 +127,12 @@ export class ConsumerService implements OnModuleInit, OnApplicationShutdown {
     return this.connection?.isConnected() ?? false;
   }
 
-  /** Trata uma mensagem recebida. */
-  private async onMessage(msg: ConsumeMessage): Promise<void> {
+  /** Trata uma mensagem recebida. `null` = o broker cancelou o consumer (fila removida/failover). */
+  private async onMessage(msg: ConsumeMessage | null): Promise<void> {
+    if (!msg) {
+      this.logger.warn('Consumer cancelado pelo broker; aguardando reconexão');
+      return;
+    }
     const type = msg.fields.routingKey;
     let envelope: EventEnvelope;
     try {
@@ -193,8 +210,12 @@ export class ConsumerService implements OnModuleInit, OnApplicationShutdown {
                 },
                 'Falha ao processar evento; será reentregue',
               );
-              // Pequeno backoff para não girar em loop apertado enquanto a dependência volta.
-              await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+              // Backoff exponencial antes do requeue, para dar tempo da dependência voltar
+              // sem queimar as 5 entregas permitidas em poucos segundos.
+              const deliveryCount = Number(headers['x-delivery-count'] ?? 0);
+              await new Promise((r) =>
+                setTimeout(r, retryDelayMs(deliveryCount)),
+              );
               this.channel.nack(msg, false, true);
             } finally {
               stopTimer();
