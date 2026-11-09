@@ -97,7 +97,7 @@ services:
       redis: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health/ready"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -119,7 +119,7 @@ services:
       redis: { condition: service_healthy }
       mongo: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health/ready"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 30
