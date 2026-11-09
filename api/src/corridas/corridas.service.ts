@@ -133,10 +133,13 @@ export class CorridasService {
 
   /**
    * Muda o status de uma corrida (somente motorista).
+   * - Iniciar/finalizar corrida já atribuída a OUTRO motorista → 403. Checado antes da
+   *   máquina de estados para não revelar o status da corrida alheia na mensagem do 409.
    * - Transição fora da máquina de estados → 409.
-   * - Iniciar/finalizar corrida aceita por OUTRO motorista → 403.
    * - O UPDATE é condicional (status + version): se outra requisição mudou a corrida no meio
    *   do caminho (ex.: dois motoristas aceitando juntos), affected = 0 e devolvemos 409.
+   * - Após o commit, a própria API atualiza o cache (CAS por versão) além de publicar o evento:
+   *   se a publicação falhar, o GET não fica preso no status antigo até o TTL expirar.
    */
   async updateStatus(
     user: AuthUser,
@@ -146,13 +149,15 @@ export class CorridasService {
     const atual = await this.repo.findOneBy({ id });
     if (!atual) throw new NotFoundException('Corrida não encontrada');
 
+    const atribuidaAOutro =
+      atual.motoristaId !== null && atual.motoristaId !== user.sub;
+    if (novo !== CorridaStatus.ACEITA && atribuidaAOutro) {
+      throw new ForbiddenException('Corrida atribuída a outro motorista');
+    }
     if (!podeTransitar(atual.status, novo)) {
       throw new ConflictException(
         `Transição inválida: ${atual.status} -> ${novo}`,
       );
-    }
-    if (novo !== CorridaStatus.ACEITA && atual.motoristaId !== user.sub) {
-      throw new ForbiddenException('Corrida atribuída a outro motorista');
     }
 
     const motoristaId =
@@ -175,6 +180,7 @@ export class CorridasService {
     }
 
     const view = toCorridaView(await this.repo.findOneByOrFail({ id }));
+    await this.cache.setIfNewer(view);
     await this.publisher.publish(
       ROUTING_KEYS.statusAlterado,
       view,

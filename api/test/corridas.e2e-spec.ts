@@ -323,6 +323,32 @@ describe('corridas (e2e, infra real)', () => {
       await patchStatus(newMotorista(), corrida.id, 'EM_ANDAMENTO').expect(403);
     });
 
+    it('retorna 403 (e não 409) quando outro motorista pede transição inválida em corrida alheia', async () => {
+      const corrida = await criarCorrida(newPassageiro());
+      await patchStatus(newMotorista(), corrida.id, 'ACEITA').expect(200);
+      const res = await patchStatus(newMotorista(), corrida.id, 'FINALIZADA');
+      expect(res.status).toBe(403);
+      expect(JSON.stringify(res.body)).not.toContain('ACEITA');
+    });
+
+    it('GET reflete o novo status logo após o PATCH, mesmo com o cache já populado', async () => {
+      const passageiro = newPassageiro();
+      const motorista = newMotorista();
+      const corrida = await criarCorrida(passageiro);
+      await request(http)
+        .get(`/corridas/${corrida.id}`)
+        .set('Authorization', `Bearer ${passageiro.token}`)
+        .expect(200);
+
+      await patchStatus(motorista, corrida.id, 'ACEITA').expect(200);
+
+      const res = await request(http)
+        .get(`/corridas/${corrida.id}`)
+        .set('Authorization', `Bearer ${passageiro.token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({ status: 'ACEITA', version: 2 });
+    });
+
     it('retorna 400 para status desconhecido', async () => {
       const corrida = await criarCorrida(newPassageiro());
       await patchStatus(newMotorista(), corrida.id, 'VOANDO').expect(400);
