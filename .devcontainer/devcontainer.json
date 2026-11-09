@@ -1,0 +1,22 @@
+{
+  // Ambiente para rodar o projeto inteiro no GitHub Codespaces (ou VS Code Dev Containers)
+  // sem precisar de Docker na máquina local: docker compose up -d --build
+  "name": "corridas",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" }
+  },
+  // A stack completa (MySQL, Mongo, RabbitMQ, Jaeger...) usa ~2,5 GB de RAM sob carga.
+  "hostRequirements": { "cpus": 4, "memory": "16gb" },
+  "forwardPorts": [5173, 3000, 3001, 15672, 9090, 16686],
+  "portsAttributes": {
+    "5173": { "label": "UI", "onAutoForward": "openBrowser" },
+    "3000": { "label": "API" },
+    "3001": { "label": "Worker (metrics/health)" },
+    "15672": { "label": "RabbitMQ painel" },
+    "9090": { "label": "Prometheus" },
+    "16686": { "label": "Jaeger" }
+  },
+  "postStartCommand": "docker compose up -d --build"
+}

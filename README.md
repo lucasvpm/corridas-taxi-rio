@@ -29,6 +29,8 @@ docker compose up -d --build
 docker compose ps        # aguarde api e worker ficarem (healthy)
 ```
 
+> **Sem Docker na máquina?** Abra o repositório no **GitHub Codespaces** (*Code › Codespaces › Create codespace on main*). O [`.devcontainer`](.devcontainer/devcontainer.json) já traz Docker e Node 24, sobe o `docker compose` sozinho e encaminha as portas abaixo (aba *Ports*).
+
 | Serviço | URL |
 |---|---|
 | UI | http://localhost:5173 |
@@ -153,7 +155,7 @@ Resumo da última execução (20 VUs, ciclo de vida completo): **8.568 requisiç
 
 ## 7. Kubernetes (Parte 3)
 
-Requer `kind` e `kubectl`. Os manifests usam Kustomize, em [`k8s/`](k8s/).
+Requer `kind` e `kubectl`. Os manifests usam Kustomize, em [`k8s/`](k8s/). O job `kubernetes` do CI roda exatamente este fluxo (kind + KEDA + smoke test) a cada push.
 
 ```bash
 bash k8s/deploy-kind.sh           # cria o cluster kind, builda e carrega as imagens, gera o Secret e aplica
