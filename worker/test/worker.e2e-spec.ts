@@ -85,13 +85,16 @@ describe('worker (e2e, infra real)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    for (const q of [process.env.WORKER_QUEUE!, process.env.WORKER_DLQ!]) {
-      await ch.deleteQueue(q).catch(() => undefined);
+    // Limpeza tolerante: se o beforeAll falhou, não mascara o erro original.
+    await app?.close();
+    if (ch) {
+      for (const q of [process.env.WORKER_QUEUE!, process.env.WORKER_DLQ!]) {
+        await ch.deleteQueue(q).catch(() => undefined);
+      }
+      await ch.deleteExchange(process.env.WORKER_DLX!).catch(() => undefined);
+      await ch.close();
     }
-    await ch.deleteExchange(process.env.WORKER_DLX!).catch(() => undefined);
-    await ch.close();
-    await conn.close();
+    await conn?.close();
   });
 
   describe('handler (at-least-once)', () => {
