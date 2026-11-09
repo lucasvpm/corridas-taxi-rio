@@ -1,0 +1,43 @@
+:root {
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --fg: #12203a;
+  --muted: #5a6780;
+  --line: #d9dfe8;
+  --taxi: #f2c200;
+  --azul: #1f4fa8;
+  --erro: #b42318;
+  --ok: #157f3b;
+  font-family: system-ui, 'Segoe UI', Arial, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 6px solid var(--taxi); padding-bottom: 12px; }
+h1 { margin: 0; font-size: 24px; }
+h2 { margin: 0 0 8px; font-size: 18px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+label { font-size: 14px; font-weight: 600; }
+input, textarea { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
+textarea { font-family: Consolas, monospace; font-size: 12px; }
+button { font: inherit; font-weight: 600; background: var(--azul); color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer; align-self: flex-start; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.secundario { background: transparent; color: var(--azul); border: 1px solid var(--azul); }
+.acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.sessao { display: flex; gap: 12px; align-items: center; }
+.muted { color: var(--muted); margin: 0; font-size: 14px; }
+.erro { color: var(--erro); margin: 0; }
+.ok { color: var(--ok); margin: 0; }
+.tabela { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); }
+code { font-size: 12px; }
+.status { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--line); }
+.status-SOLICITADA { background: #fff3c4; }
+.status-ACEITA { background: #dbe7ff; }
+.status-EM_ANDAMENTO { background: #e4d9ff; }
+.status-FINALIZADA { background: #d3f2dc; }
