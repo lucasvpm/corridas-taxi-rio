@@ -48,9 +48,13 @@ export class HealthController {
       },
       async () => {
         const redis = this.indicators.check('redis');
+        // Redis fora NÃO tira a API de serviço: reporta "degraded" mas continua up.
         return (await this.cache.ping())
           ? redis.up()
-          : redis.degraded('indisponível; leituras vão direto ao MySQL');
+          : redis.up({
+              degraded: true,
+              message: 'indisponível; leituras vão direto ao MySQL',
+            });
       },
     ]);
   }
