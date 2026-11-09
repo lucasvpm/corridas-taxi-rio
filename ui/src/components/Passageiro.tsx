@@ -14,6 +14,7 @@ export function Passageiro() {
   const [destino, setDestino] = useState('')
   const [corridas, setCorridas] = useState<Corrida[]>([])
   const [erro, setErro] = useState<string | null>(null)
+  const [erroLista, setErroLista] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   // A mesma chave é reaproveitada se o envio falhar e o usuário tentar de novo.
   const pendingKey = useRef<string | null>(null)
@@ -22,8 +23,9 @@ export function Passageiro() {
   const carregar = useCallback(async () => {
     try {
       setCorridas(await listarCorridas(token))
+      setErroLista(null)
     } catch (e) {
-      setErro((e as Error).message)
+      setErroLista((e as Error).message)
     }
   }, [token])
 
@@ -32,6 +34,15 @@ export function Passageiro() {
     const id = setInterval(() => void carregar(), POLLING_MS)
     return () => clearInterval(id)
   }, [carregar])
+
+  /**
+   * Mudar o payload invalida a chave pendente: a mesma Idempotency-Key com outro
+   * corpo seria recusada pela API (422).
+   */
+  function alterarCampo(set: (v: string) => void, valor: string) {
+    pendingKey.current = null
+    set(valor)
+  }
 
   /** Solicita a corrida com Idempotency-Key. */
   async function onSubmit(e: FormEvent) {
@@ -59,11 +70,11 @@ export function Passageiro() {
         <div className="row">
           <div>
             <label htmlFor="origem">Origem</label>
-            <input id="origem" value={origem} maxLength={200} onChange={(e) => setOrigem(e.target.value)} />
+            <input id="origem" value={origem} maxLength={200} onChange={(e) => alterarCampo(setOrigem, e.target.value)} />
           </div>
           <div>
             <label htmlFor="destino">Destino</label>
-            <input id="destino" value={destino} maxLength={200} onChange={(e) => setDestino(e.target.value)} />
+            <input id="destino" value={destino} maxLength={200} onChange={(e) => alterarCampo(setDestino, e.target.value)} />
           </div>
         </div>
         {erro && <p className="erro">{erro}</p>}
@@ -75,6 +86,7 @@ export function Passageiro() {
       <section className="card">
         <h2>Minhas corridas</h2>
         <p className="muted">Atualiza sozinho a cada {POLLING_MS / 1000}s.</p>
+        {erroLista && <p className="erro">Falha ao atualizar: {erroLista}</p>}
         {corridas.length === 0 ? (
           <p className="muted">Nenhuma corrida ainda.</p>
         ) : (
