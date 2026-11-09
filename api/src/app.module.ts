@@ -50,6 +50,10 @@ type RequestWithCorrelation = IncomingMessage & { correlationId?: string };
         // Migrations rodam no boot (simples para o desafio). Em produção seria um Job separado.
         migrationsRun: true,
         synchronize: false,
+        // Espera o MySQL por até ~90s no boot (ex.: pod do banco ainda inicializando no k8s)
+        // em vez de derrubar o processo e entrar em CrashLoopBackOff.
+        retryAttempts: 30,
+        retryDelay: 3000,
         timezone: 'Z',
       }),
     }),

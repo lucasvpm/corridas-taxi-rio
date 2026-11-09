@@ -177,6 +177,9 @@ jobs:
       - name: diagnóstico em caso de falha
         if: failure()
         run: |
-          kubectl -n corridas get all,scaledobject,events --sort-by=.lastTimestamp || true
+          kubectl -n corridas get pods,statefulsets,deployments,pvc,scaledobject -o wide || true
+          kubectl -n corridas get events --sort-by=.metadata.creationTimestamp | tail -60 || true
+          kubectl -n corridas describe pods -l app=mysql | tail -40 || true
+          kubectl -n corridas logs statefulset/mysql --tail 60 || true
           kubectl -n corridas logs deploy/api --tail 100 || true
           kubectl -n corridas logs deploy/worker --tail 100 || true

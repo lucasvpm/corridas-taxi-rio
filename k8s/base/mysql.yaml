@@ -4,6 +4,18 @@ kind: Service
 metadata:
   name: mysql
 spec:
+  selector: { app: mysql }
+  ports:
+    - port: 3306
+---
+# Service normal (ClusterIP) para os clientes: o nome resolve mesmo antes do pod ficar Ready
+# (com headless, o DNS só existe com o pod Ready e a API recebia ENOTFOUND no boot).
+# O headless abaixo existe só para a identidade estável do StatefulSet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-headless
+spec:
   clusterIP: None
   selector: { app: mysql }
   ports:
@@ -14,7 +26,7 @@ kind: StatefulSet
 metadata:
   name: mysql
 spec:
-  serviceName: mysql
+  serviceName: mysql-headless
   replicas: 1
   selector:
     matchLabels: { app: mysql }
@@ -41,6 +53,7 @@ spec:
               command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 5
           resources:
             requests: { cpu: 100m, memory: 384Mi }
             limits: { cpu: "1", memory: 768Mi }

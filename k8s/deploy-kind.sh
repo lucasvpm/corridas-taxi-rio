@@ -48,7 +48,11 @@ else
   kubectl apply -k "$ROOT/k8s/base"
 fi
 
-for d in api worker ui; do
+# Primeiro a infraestrutura (bancos e broker), depois as aplicações.
+for s in mysql mongo rabbitmq; do
+  kubectl -n corridas rollout status "statefulset/$s" --timeout=600s
+done
+for d in redis api worker ui; do
   kubectl -n corridas rollout status "deploy/$d" --timeout=600s
 done
 

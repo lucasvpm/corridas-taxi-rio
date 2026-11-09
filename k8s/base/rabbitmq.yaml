@@ -3,7 +3,6 @@ kind: Service
 metadata:
   name: rabbitmq
 spec:
-  clusterIP: None
   selector: { app: rabbitmq }
   ports:
     - name: amqp
@@ -13,12 +12,26 @@ spec:
     - name: prometheus
       port: 15692
 ---
+# Service normal (ClusterIP) para os clientes: o nome resolve mesmo antes do pod ficar Ready
+# (com headless, o DNS só existe com o pod Ready e a API recebia ENOTFOUND no boot).
+# O headless abaixo existe só para a identidade estável do StatefulSet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+spec:
+  clusterIP: None
+  selector: { app: rabbitmq }
+  ports:
+    - name: amqp
+      port: 5672
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: rabbitmq
 spec:
-  serviceName: rabbitmq
+  serviceName: rabbitmq-headless
   replicas: 1
   selector:
     matchLabels: { app: rabbitmq }

@@ -3,6 +3,18 @@ kind: Service
 metadata:
   name: mongo
 spec:
+  selector: { app: mongo }
+  ports:
+    - port: 27017
+---
+# Service normal (ClusterIP) para os clientes: o nome resolve mesmo antes do pod ficar Ready
+# (com headless, o DNS só existe com o pod Ready e a API recebia ENOTFOUND no boot).
+# O headless abaixo existe só para a identidade estável do StatefulSet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-headless
+spec:
   clusterIP: None
   selector: { app: mongo }
   ports:
@@ -13,7 +25,7 @@ kind: StatefulSet
 metadata:
   name: mongo
 spec:
-  serviceName: mongo
+  serviceName: mongo-headless
   replicas: 1
   selector:
     matchLabels: { app: mongo }
