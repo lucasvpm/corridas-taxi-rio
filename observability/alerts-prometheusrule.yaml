@@ -1,0 +1,45 @@
+# Mesmas regras de observability/alerts.yml, no formato CRD do Prometheus Operator.
+# O label `release` precisa casar com o ruleSelector do Prometheus do cluster.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: corridas-alerts
+  namespace: corridas
+  labels:
+    app.kubernetes.io/part-of: corridas
+    release: prometheus
+spec:
+  groups:
+    - name: corridas.slo
+      rules:
+        - alert: CorridasApiHighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{job="api", status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{job="api"}[5m]))
+            ) > 0.05
+            and
+            sum(rate(http_requests_total{job="api"}[5m])) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+            service: corridas-api
+          annotations:
+            summary: "API de corridas com {{ $value | humanizePercentage }} de respostas 5xx"
+            description: "Mais de 5% das requisições da API retornaram 5xx nos últimos 5 minutos."
+            runbook: "Ver logs da API por correlation_id e o /health/ready (MySQL e broker)."
+
+        - alert: CorridasStatusPipelineStalled
+          expr: |
+            sum by (queue) (rabbitmq_detailed_queue_messages_ready{queue="worker.corridas"}) > 100
+            or
+            sum by (queue) (rabbitmq_detailed_queue_consumers{queue="worker.corridas"}) == 0
+          for: 3m
+          labels:
+            severity: warning
+            service: corridas-worker
+          annotations:
+            summary: "Fila {{ $labels.queue }} acumulando ou sem consumidor (valor: {{ $value }})"
+            description: "O status das corridas no cache está atrasado: backlog > 100 ou zero consumidores por 3 minutos."
+            runbook: "Checar se o worker está de pé (/health/ready), erros no log e a DLQ worker.corridas.dlq."

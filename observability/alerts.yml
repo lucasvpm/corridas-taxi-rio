@@ -1,0 +1,47 @@
+# Mesmos groups de observability/alerts-prometheusrule.yaml (formato do Prometheus Operator).
+# A justificativa completa de cada alerta e limiar está no README (seção Observabilidade).
+groups:
+  - name: corridas.slo
+    rules:
+      # Por quê: 5xx é o sintoma que o passageiro sente (não consegue pedir/acompanhar corrida).
+      # Limiar: 5% por 5 min. Abaixo disso um deploy ou um blip de rede gera ruído; acima, mais de 1 em
+      # cada 20 pedidos falha de forma sustentada. O "and > 0.1 req/s" evita disparar com tráfego
+      # irrisório (1 erro em 2 requisições não é incidente).
+      - alert: CorridasApiHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="api", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="api"}[5m]))
+          ) > 0.05
+          and
+          sum(rate(http_requests_total{job="api"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: corridas-api
+        annotations:
+          summary: "API de corridas com {{ $value | humanizePercentage }} de respostas 5xx"
+          description: "Mais de 5% das requisições da API retornaram 5xx nos últimos 5 minutos."
+          runbook: "Ver logs da API por correlation_id e o /health/ready (MySQL e broker)."
+
+      # Por quê: o produto promete status "em tempo quase real". Se a fila do worker acumula
+      # ou fica sem consumidor, a API continua 2xx mas o passageiro vê status velho — um
+      # incidente silencioso que o alerta de 5xx não pega.
+      # Fonte: métrica do próprio RabbitMQ (dispara mesmo com o worker morto).
+      # Limiar: 100 mensagens prontas = ~30-50s de atraso na vazão medida no k6 com 1 worker
+      # (ver loadtest/RELATORIO.md), ou nenhum consumidor. "for: 3m" ignora picos curtos que o
+      # worker absorve sozinho.
+      - alert: CorridasStatusPipelineStalled
+        expr: |
+          sum by (queue) (rabbitmq_detailed_queue_messages_ready{queue="worker.corridas"}) > 100
+          or
+          sum by (queue) (rabbitmq_detailed_queue_consumers{queue="worker.corridas"}) == 0
+        for: 3m
+        labels:
+          severity: warning
+          service: corridas-worker
+        annotations:
+          summary: "Fila {{ $labels.queue }} acumulando ou sem consumidor (valor: {{ $value }})"
+          description: "O status das corridas no cache está atrasado: backlog > 100 ou zero consumidores por 3 minutos."
+          runbook: "Checar se o worker está de pé (/health/ready), erros no log e a DLQ worker.corridas.dlq."
