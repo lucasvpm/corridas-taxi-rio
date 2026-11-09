@@ -71,16 +71,18 @@ describe('worker (e2e, infra real)', () => {
         'amqp://corridas:corridas_dev_only@localhost:5672',
     );
     ch = await conn.createChannel();
-    // Espera o consumer declarar a fila de teste.
+    // Espera o worker estar CONSUMINDO a fila de teste. Só a fila existir não basta: ela é
+    // declarada antes do bind com a exchange, e uma mensagem publicada nesse intervalo fica
+    // sem rota e é descartada (teste instável no CI). O consume só começa depois do bind.
     await eventually(async () => {
       try {
         const probe = await conn.createChannel();
         // checkQueue de fila inexistente fecha o canal com 404 e o amqplib emite 'error';
         // sem listener isso vira "Unhandled error" e derruba a suíte.
         probe.on('error', () => undefined);
-        await probe.checkQueue(process.env.WORKER_QUEUE!);
+        const q = await probe.checkQueue(process.env.WORKER_QUEUE!);
         await probe.close();
-        return true;
+        return q.consumerCount >= 1;
       } catch {
         return false;
       }
