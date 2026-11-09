@@ -57,9 +57,9 @@ Formato: **Contexto · Alternativas · Decisão · Trade-off aceito.**
 
 **Alternativas.** Write-through na API (grava MySQL e Redis no PATCH); invalidar o cache no PATCH; ou cache atualizado por eventos.
 
-**Decisão.** **Atualização por eventos no worker + cache-aside na leitura da API.** O worker grava o snapshot a cada evento. No `GET`, a API lê do Redis e, em MISS, busca no MySQL e popula. As duas escritas usam o mesmo **CAS por versão**, então uma escrita velha nunca sobrescreve uma nova, venha de quem vier. Se o Redis cair, o GET lê direto do MySQL (o readiness reporta `degraded`, não `down`).
+**Decisão.** **Atualização por eventos no worker + cache-aside na leitura da API + escrita da API no PATCH.** O worker grava o snapshot a cada evento. No `GET`, a API lê do Redis e, em MISS, busca no MySQL e popula. No `PATCH`, logo após o commit, a própria API grava o novo snapshot. Essa escrita entrou depois do code review: sem ela, uma publicação perdida deixaria o GET preso no status antigo até o TTL. As duas escritas usam o mesmo **CAS por versão**, então uma escrita velha nunca sobrescreve uma nova, venha de quem vier. Se o Redis cair, o GET lê direto do MySQL (o readiness reporta `degraded`, não `down`).
 
-**Trade-off.** **Consistência eventual**: entre o commit do PATCH e o processamento do evento, um GET com HIT pode devolver o status anterior. A janela é o atraso da fila (medido no k6 como `cache_convergence_ms`) e é vigiada pelo alerta `CorridasStatusPipelineStalled`. Write-through eliminaria a janela, mas tiraria o papel do worker pedido no enunciado. A chave guarda `passageiro_id` para a checagem de dono funcionar mesmo no HIT.
+**Trade-off.** São duas fontes escrevendo no cache (API e worker). Isso só é seguro por causa do CAS por versão. O worker continua sendo quem garante o cache para eventos vindos de qualquer produtor; a escrita da API é uma rede de segurança. A janela de inconsistência fica restrita a uma falha de Redis no momento do PATCH, coberta pelo TTL e pelo alerta `CorridasStatusPipelineStalled`. A chave guarda `passageiro_id` para a checagem de dono funcionar mesmo no HIT.
 
 ---
 

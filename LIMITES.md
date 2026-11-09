@@ -12,7 +12,9 @@
 - **Sem TLS nem autenticação forte** em Redis e Mongo, e senhas de desenvolvimento no `docker-compose.yml` (marcadas como `*_dev_only`). No k8s as credenciais vêm de Secret gerado fora do repositório.
 
 ## Riscos conhecidos
-- **Consistência eventual do GET.** Entre o PATCH e o processamento do evento, um GET com cache HIT pode mostrar o status anterior. A janela é o atraso da fila e é coberta pelo alerta `CorridasStatusPipelineStalled`.
+- **Consistência eventual do GET.** A API grava o cache no PATCH, mas, se o Redis falhar exatamente nesse momento, o GET depende do worker processar o evento (ou do TTL).
+- **Delivery tag após reconexão.** Se a conexão com o broker cair enquanto uma mensagem está no handler, o ack é enviado num canal novo e o broker fecha esse canal com "unknown delivery tag". A mensagem é reentregue e tratada como duplicada, então não há perda, mas há um ciclo extra de reconexão.
+- **Script Lua e topologia duplicados** entre API e worker. Um pacote compartilhado eliminaria o risco de divergência.
 - **Topologia duplicada** entre API e worker: se alguém mudar os argumentos da fila de um lado só, o broker recusa a declaração (`PRECONDITION_FAILED`) e o serviço não consegue publicar ou consumir.
 - **Vulnerabilidades moderadas** no `glob`/`minimatch` usados internamente pelo TypeORM 0.3 (só somem migrando para o TypeORM 1.x, que é breaking). As "high" foram zeradas, inclusive com override do `multer` para 2.5.0.
 - **Ordem de eventos** é garantida só para o cache (CAS por versão). O histórico grava na ordem de chegada; a ordem lógica vem do campo `version`.
