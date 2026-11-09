@@ -27,3 +27,4 @@ Thumbs.db
 
 # Credenciais do kustomize (Parte 3) — só o .example é versionado
 k8s/**/secrets.env
+loadtest/results/

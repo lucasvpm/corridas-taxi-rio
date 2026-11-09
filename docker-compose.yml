@@ -155,7 +155,8 @@ services:
     volumes:
       - ./loadtest:/scripts:ro
       - ./scripts/test-keys:/keys:ro
-    command: ["run", "/scripts/corridas.js"]
+      - ./loadtest/results:/results
+    command: ["run", "--summary-export=/results/summary.json", "/scripts/corridas.js"]
     depends_on:
       api: { condition: service_healthy }
 
