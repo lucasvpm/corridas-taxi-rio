@@ -164,7 +164,7 @@ kubectl -n corridas port-forward svc/api 3000:3000   # e rode scripts/smoke.sh
 ```
 
 - Probes: `startupProbe` (cobre a migration), `livenessProbe` em `/health/live` (só o processo, para não reiniciar em cascata quando o MySQL cai) e `readinessProbe` em `/health/ready` (MySQL + broker; Redis fora = `degraded`).
-- Requests e limits: vêm do `docker stats` durante o k6. A API chegou a 330 MiB com tracing ligado, então ficou com requests de 384Mi e limit de 512Mi; o worker chegou a 211 MiB e ficou com 256Mi e 384Mi. A margem é de ~50% sobre o pico (ver relatório).
+- Requests e limits: vêm do `docker stats` durante o k6. **Memória** (não compressível) tem request no pico medido: a API chegou a 330 MiB, então ficou com 384Mi de request e 512Mi de limit; o worker chegou a 211 MiB e ficou com 256Mi e 384Mi. **CPU** (compressível) tem request no uso moderado (API 100m, worker 50m) e limit acima do pico do k6 (54% de 1 core na API), para o cluster caber num nó pequeno sem deixar os bancos em `Pending` (ver relatório e DIARIO).
 - Configuração: `ConfigMap` (não sensível) e `Secret` via `secretGenerator` lendo `k8s/base/secrets.env`, que está **no .gitignore**. O script gera senhas aleatórias se o arquivo não existir. Não há credenciais no repositório.
 
 ## 8. Estrutura

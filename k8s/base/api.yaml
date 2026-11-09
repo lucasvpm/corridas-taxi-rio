@@ -46,11 +46,12 @@ spec:
             - name: jwt-public-key
               mountPath: /run/keys
               readOnly: true
-          # startup: dá tempo para a migration rodar no primeiro boot sem o liveness matar o pod.
+          # startup: a API só abre a porta depois de conectar no MySQL (retry por até ~90s) e rodar
+          # a migration; a janela de 150s evita que o pod seja morto enquanto o banco inicializa.
           startupProbe:
             httpGet: { path: /health/live, port: 3000 }
             periodSeconds: 2
-            failureThreshold: 30
+            failureThreshold: 75
           # liveness não olha dependências: MySQL fora não deve causar restart em cascata.
           livenessProbe:
             httpGet: { path: /health/live, port: 3000 }
@@ -63,8 +64,10 @@ spec:
             failureThreshold: 2
           resources:
             # Medido no k6 (loadtest/RELATORIO.md): pico de 54% de 1 core e 330 MiB com tracing ligado.
-            # requests ~ uso típico sob carga; limits com ~50% de margem sobre o pico.
-            requests: { cpu: 250m, memory: 384Mi }
+            # CPU: request = uso em carga moderada (o que o scheduler reserva); o pico do k6 cabe no limit.
+            #   Com request = pico (250m x 2 réplicas) os bancos ficaram Pending num nó de 2 vCPU.
+            # Memória: não é compressível (estourar = OOMKill), então o request já cobre o pico.
+            requests: { cpu: 100m, memory: 384Mi }
             limits: { cpu: "1", memory: 512Mi }
           securityContext:
             allowPrivilegeEscalation: false

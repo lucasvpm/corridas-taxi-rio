@@ -32,7 +32,8 @@ export class HistoricoService implements OnModuleInit, OnApplicationShutdown {
   /** Cria o cliente Mongo (conecta no OnModuleInit). */
   constructor(private readonly config: ConfigService) {
     this.client = new MongoClient(config.getOrThrow<string>('MONGO_URL'), {
-      serverSelectionTimeoutMS: 5000,
+      // Espera o Mongo por até 60s no boot (ex.: pod ainda subindo no k8s) antes de desistir.
+      serverSelectionTimeoutMS: 60000,
     });
   }
 

@@ -35,7 +35,7 @@ DB_PASSWORD=$DB_PASSWORD
 MYSQL_ROOT_PASSWORD=$ROOT_PASSWORD
 RABBITMQ_DEFAULT_USER=corridas
 RABBITMQ_DEFAULT_PASS=$MQ_PASSWORD
-AMQP_URL=amqp://corridas:$MQ_PASSWORD@rabbitmq:5672
+AMQP_URL=amqp://corridas:$MQ_PASSWORD@rabbitmq.corridas.svc.cluster.local:5672
 EOF
   echo "Gerado $SECRETS (gitignored)"
 fi

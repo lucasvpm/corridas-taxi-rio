@@ -43,10 +43,11 @@ spec:
               value: "3001"
             - name: AMQP_URL
               valueFrom: { secretKeyRef: { name: corridas-secrets, key: AMQP_URL } }
+          # Janela de 150s: o worker conecta no Mongo antes de abrir a porta.
           startupProbe:
             httpGet: { path: /health/live, port: 3001 }
             periodSeconds: 2
-            failureThreshold: 30
+            failureThreshold: 75
           livenessProbe:
             httpGet: { path: /health/live, port: 3001 }
             periodSeconds: 10
@@ -57,7 +58,7 @@ spec:
             failureThreshold: 2
           resources:
             # Medido no k6: pico de 14% de 1 core e 211 MiB processando 65 msg/s.
-            requests: { cpu: 100m, memory: 256Mi }
+            requests: { cpu: 50m, memory: 256Mi }
             limits: { cpu: 500m, memory: 384Mi }
           securityContext:
             allowPrivilegeEscalation: false

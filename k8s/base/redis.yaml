@@ -29,5 +29,5 @@ spec:
             exec: { command: ["redis-cli", "ping"] }
             periodSeconds: 5
           resources:
-            requests: { cpu: 50m, memory: 64Mi }
+            requests: { cpu: 25m, memory: 64Mi }
             limits: { cpu: 250m, memory: 128Mi }
