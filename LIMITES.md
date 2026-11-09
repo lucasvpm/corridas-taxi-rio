@@ -5,7 +5,7 @@
 - **Rate limiting.** Não implementado, de propósito, para o k6 medir a aplicação e não o limitador. Em produção: `@nestjs/throttler` com storage Redis, chaveado por `sub` do token.
 - **JWKS / rotação de chave.** A chave pública é estática, então trocar a chave exige redeploy.
 - **Migrations no boot da API.** Simples para o desafio. Com várias réplicas, as migrations deveriam rodar num Job separado antes do rollout (hoje o TypeORM usa lock, mas atrasa o startup).
-- **Backoff de retry fixo (1s).** Um backoff exponencial de verdade pediria filas de retry com TTL. A DLQ não tem ferramenta de reprocessamento; o "shovel" é manual pelo painel.
+- **Retry dentro do worker.** O backoff exponencial (2s→30s) é feito segurando a mensagem no processo antes do nack, o que ocupa um slot do prefetch. Filas de retry com TTL seriam mais robustas. A DLQ não tem ferramenta de reprocessamento; o "shovel" é manual pelo painel.
 - **UI sem testes automatizados.** O CI faz lint e build. O fluxo da UI foi validado manualmente.
 - **Replay idempotente devolve o estado atual**, não o corpo original da resposta.
 - **Observabilidade no Kubernetes.** Os manifests não sobem Prometheus nem Jaeger no kind (o OTel fica desligado lá). A regra está pronta como `PrometheusRule`, para um cluster com Prometheus Operator.
@@ -14,8 +14,7 @@
 ## Riscos conhecidos
 - **Consistência eventual do GET.** A API grava o cache no PATCH, mas, se o Redis falhar exatamente nesse momento, o GET depende do worker processar o evento (ou do TTL).
 - **Delivery tag após reconexão.** Se a conexão com o broker cair enquanto uma mensagem está no handler, o ack é enviado num canal novo e o broker fecha esse canal com "unknown delivery tag". A mensagem é reentregue e tratada como duplicada, então não há perda, mas há um ciclo extra de reconexão.
-- **Script Lua e topologia duplicados** entre API e worker. Um pacote compartilhado eliminaria o risco de divergência.
-- **Topologia duplicada** entre API e worker: se alguém mudar os argumentos da fila de um lado só, o broker recusa a declaração (`PRECONDITION_FAILED`) e o serviço não consegue publicar ou consumir.
+- **Script Lua e topologia duplicados** entre API e worker. Se alguém mudar os argumentos da fila de um lado só, o broker recusa a declaração (`PRECONDITION_FAILED`). Um pacote compartilhado eliminaria esse risco.
 - **Vulnerabilidades moderadas** no `glob`/`minimatch` usados internamente pelo TypeORM 0.3 (só somem migrando para o TypeORM 1.x, que é breaking). As "high" foram zeradas, inclusive com override do `multer` para 2.5.0.
 - **Ordem de eventos** é garantida só para o cache (CAS por versão). O histórico grava na ordem de chegada; a ordem lógica vem do campo `version`.
 
