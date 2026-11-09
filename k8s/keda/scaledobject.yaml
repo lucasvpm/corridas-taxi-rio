@@ -1,0 +1,34 @@
+# A conexão com o broker vem do mesmo Secret da aplicação (chave AMQP_URL).
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-auth
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: corridas-secrets
+      key: AMQP_URL
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker
+spec:
+  scaleTargetRef:
+    name: worker
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  pollingInterval: 5
+  # Espera 60s com a fila baixa antes de reduzir, para não ficar subindo e descendo.
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp
+        queueName: worker.corridas
+        mode: QueueLength
+        # Alvo: ~20 mensagens prontas por réplica. Com prefetch=10, uma réplica
+        # já tem 10 em voo; acima de 20 na fila o atraso começa a ser percebido.
+        value: "20"
+      authenticationRef:
+        name: rabbitmq-auth

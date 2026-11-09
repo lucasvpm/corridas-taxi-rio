@@ -1,0 +1,7 @@
+# Ensina o kustomize que TriggerAuthentication referencia um Secret,
+# para que o nome receba o mesmo sufixo de hash do secretGenerator.
+nameReference:
+  - kind: Secret
+    fieldSpecs:
+      - kind: TriggerAuthentication
+        path: spec/secretTargetRef/name

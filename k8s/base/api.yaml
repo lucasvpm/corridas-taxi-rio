@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector: { app: api }
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: api }
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels: { app: api }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: /metrics
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: corridas-api:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef: { name: corridas-config }
+          env:
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: corridas-secrets, key: DB_PASSWORD } }
+            - name: AMQP_URL
+              valueFrom: { secretKeyRef: { name: corridas-secrets, key: AMQP_URL } }
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /run/keys
+              readOnly: true
+          # startup: dá tempo para a migration rodar no primeiro boot sem o liveness matar o pod.
+          startupProbe:
+            httpGet: { path: /health/live, port: 3000 }
+            periodSeconds: 2
+            failureThreshold: 30
+          # liveness não olha dependências: MySQL fora não deve causar restart em cascata.
+          livenessProbe:
+            httpGet: { path: /health/live, port: 3000 }
+            periodSeconds: 10
+            failureThreshold: 3
+          # readiness tira o pod do Service se MySQL ou broker caírem.
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 3000 }
+            periodSeconds: 5
+            failureThreshold: 2
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: jwt-public-key
+          configMap:
+            name: jwt-public-key
+            items:
+              - key: jwt-public.pem
+                path: jwt-public.pem

@@ -1,0 +1,49 @@
+# Parte 3: feita por agente de IA (Claude Code) com harness pesado. Ver README › Declaração de uso de IA.
+# Uso: k8s/deploy-kind.sh (cria cluster kind, carrega imagens e aplica).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: corridas
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: corridas
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - mysql.yaml
+  - redis.yaml
+  - mongo.yaml
+  - rabbitmq.yaml
+  - api.yaml
+  - worker.yaml
+  - ui.yaml
+
+# Configuração não sensível.
+configMapGenerator:
+  - name: corridas-config
+    literals:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=corridas
+      - DB_NAME=corridas
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URL=mongodb://mongo:27017
+      - MONGO_DB=corridas
+      - JWT_ISSUER=corridas-test-issuer
+      - JWT_AUDIENCE=corridas-api
+      - JWT_PUBLIC_KEY_PATH=/run/keys/jwt-public.pem
+      - CACHE_TTL_SECONDS=3600
+      - LOG_LEVEL=info
+      - OTEL_SDK_DISABLED=true
+  # Chave PÚBLICA de teste (não é segredo).
+  - name: jwt-public-key
+    files:
+      - jwt-public.pem
+
+# Credenciais: lidas de k8s/base/secrets.env, que é GITIGNORED.
+# Copie secrets.env.example para secrets.env e preencha antes do apply.
+secretGenerator:
+  - name: corridas-secrets
+    envs:
+      - secrets.env

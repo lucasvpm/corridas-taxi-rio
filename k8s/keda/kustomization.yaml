@@ -1,0 +1,10 @@
+# Bônus: KEDA escalando o worker pelo tamanho da fila worker.corridas.
+# Pré-requisito: KEDA instalado no cluster (o deploy-kind.sh instala com --keda).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: corridas
+resources:
+  - ../base
+  - scaledobject.yaml
+configurations:
+  - kustomizeconfig.yaml
