@@ -29,9 +29,10 @@ groups:
       # ou fica sem consumidor, a API continua 2xx mas o passageiro vê status velho — um
       # incidente silencioso que o alerta de 5xx não pega.
       # Fonte: métrica do próprio RabbitMQ (dispara mesmo com o worker morto).
-      # Limiar: 100 mensagens prontas = ~30-50s de atraso na vazão medida no k6 com 1 worker
-      # (ver loadtest/RELATORIO.md), ou nenhum consumidor. "for: 3m" ignora picos curtos que o
-      # worker absorve sozinho.
+      # Limiar: no k6 um worker saudável processa cada mensagem em ~9 ms (p95) e a fila nunca
+      # passou de 0; com prefetch 10, 100 mensagens drenam em menos de 1 s. Ficar acima de 100 por
+      # 3 min só acontece se o worker parou ou degradou. Ou nenhum consumidor (worker morto).
+      # "for: 3m" ignora picos curtos que o worker absorve sozinho (ver loadtest/RELATORIO.md).
       - alert: CorridasStatusPipelineStalled
         expr: |
           sum by (queue) (rabbitmq_detailed_queue_messages_ready{queue="worker.corridas"}) > 100

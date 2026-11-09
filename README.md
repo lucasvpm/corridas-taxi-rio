@@ -122,7 +122,7 @@ O que está coberto:
 - **Worker, unit:** validação do envelope.
 - **Worker, e2e:** a mesma mensagem duas vezes gera 1 documento; evento antigo fora de ordem não sobrescreve o cache; mensagem malformada vai para a DLQ e a fila continua andando.
 
-**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): a cada push/PR roda lint, unit e e2e (com os serviços como `services:` do Actions), `npm audit` (falha em vulnerabilidade *high*), build das apps e build das 3 imagens Docker.
+**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): a cada push/PR roda lint, unit e e2e (com os serviços como `services:` do Actions), `npm audit` (falha em vulnerabilidade *high*), build das apps e das 3 imagens Docker. Um job **`stack completa`** ([`scripts/ci-stack-check.sh`](scripts/ci-stack-check.sh)) sobe o `docker-compose.yml` inteiro e valida o mesmo roteiro deste README: smoke test, k6 com thresholds, regras carregadas no Prometheus, um trace no Jaeger com spans da API **e** do worker, e o alerta de fila ficando ativo quando o worker é derrubado.
 
 ## 5. Observabilidade (Parte 2)
 
@@ -139,7 +139,7 @@ O que está coberto:
 - **Trace distribuído (OpenTelemetry → Jaeger).** Abra http://localhost:16686, escolha o serviço `corridas-api` e abra um `POST /corridas`. O trace mostra HTTP → MySQL → `corridas publish` → `worker.corridas process` (no serviço `corridas-worker`) → Redis → MongoDB. O `traceparent` atravessa o broker no header da mensagem, com propagação manual nos dois lados.
 - **Alertas** ([`observability/alerts.yml`](observability/alerts.yml) e [`alerts-prometheusrule.yaml`](observability/alerts-prometheusrule.yaml), com os mesmos groups), visíveis em http://localhost:9090/alerts:
   1. **`CorridasApiHighErrorRate`**: 5xx > 5% por 5 min, com tráfego > 0.1 req/s. *Por quê:* é o sintoma que o passageiro sente. *Limiar:* abaixo de 5% um blip de deploy ou de rede gera ruído; o piso de tráfego evita alarme com 1 erro em 2 requisições.
-  2. **`CorridasStatusPipelineStalled`**: fila `worker.corridas` com mais de 100 mensagens prontas **ou** zero consumidores, por 3 min. *Por quê:* é o incidente silencioso em que a API segue 2xx, mas o status no cache envelhece. Ele lê a métrica do próprio RabbitMQ, então **dispara mesmo com o worker morto**. *Limiar:* calibrado com a vazão medida no k6 (ver relatório).
+  2. **`CorridasStatusPipelineStalled`**: fila `worker.corridas` com mais de 100 mensagens prontas **ou** zero consumidores, por 3 min. *Por quê:* é o incidente silencioso em que a API segue 2xx, mas o status no cache envelhece. Ele lê a métrica do próprio RabbitMQ, então **dispara mesmo com o worker morto**. *Limiar:* no k6 um worker saudável processa cada mensagem em ~9 ms e a fila nunca acumulou, então 100 mensagens paradas por 3 min indicam worker parado ou degradado (ver relatório).
   - Para ver disparar: `docker compose stop worker`, crie algumas corridas e, em cerca de 3 min, o alerta 2 fica *firing*. Depois, `docker compose start worker`.
 
 ## 6. Teste de carga (k6)
@@ -149,7 +149,7 @@ docker compose --profile loadtest run --rm k6
 # parâmetros: -e VUS=40 -e DURATION=2m
 ```
 
-O cenário, os números medidos e as conclusões estão em [loadtest/RELATORIO.md](loadtest/RELATORIO.md).
+Resumo da última execução (20 VUs, ciclo de vida completo): **8.568 requisições, 0 falhas, p95 de 62 ms**, atraso da fila p95 de 41 ms e a fila nunca acumulou. O cenário, os números completos e as conclusões estão em [loadtest/RELATORIO.md](loadtest/RELATORIO.md).
 
 ## 7. Kubernetes (Parte 3)
 
@@ -162,7 +162,7 @@ kubectl -n corridas port-forward svc/api 3000:3000   # e rode scripts/smoke.sh
 ```
 
 - Probes: `startupProbe` (cobre a migration), `livenessProbe` em `/health/live` (só o processo, para não reiniciar em cascata quando o MySQL cai) e `readinessProbe` em `/health/ready` (MySQL + broker; Redis fora = `degraded`).
-- Requests e limits: partem do consumo medido no k6 (ver relatório), com folga para picos.
+- Requests e limits: vêm do `docker stats` durante o k6. A API chegou a 330 MiB com tracing ligado, então ficou com requests de 384Mi e limit de 512Mi; o worker chegou a 211 MiB e ficou com 256Mi e 384Mi. A margem é de ~50% sobre o pico (ver relatório).
 - Configuração: `ConfigMap` (não sensível) e `Secret` via `secretGenerator` lendo `k8s/base/secrets.env`, que está **no .gitignore**. O script gera senhas aleatórias se o arquivo não existir. Não há credenciais no repositório.
 
 ## 8. Estrutura

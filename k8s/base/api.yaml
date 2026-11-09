@@ -62,8 +62,10 @@ spec:
             periodSeconds: 5
             failureThreshold: 2
           resources:
-            requests: { cpu: 100m, memory: 128Mi }
-            limits: { cpu: 500m, memory: 256Mi }
+            # Medido no k6 (loadtest/RELATORIO.md): pico de 54% de 1 core e 330 MiB com tracing ligado.
+            # requests ~ uso típico sob carga; limits com ~50% de margem sobre o pico.
+            requests: { cpu: 250m, memory: 384Mi }
+            limits: { cpu: "1", memory: 512Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

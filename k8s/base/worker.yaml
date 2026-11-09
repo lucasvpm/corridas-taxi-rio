@@ -56,8 +56,9 @@ spec:
             periodSeconds: 5
             failureThreshold: 2
           resources:
-            requests: { cpu: 50m, memory: 96Mi }
-            limits: { cpu: 300m, memory: 192Mi }
+            # Medido no k6: pico de 14% de 1 core e 211 MiB processando 65 msg/s.
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 384Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
