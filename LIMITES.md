@@ -1,3 +1,26 @@
 # Limites, Riscos e Próximos Passos
 
-_(atualizado ao longo do desafio)_
+## O que ficou de fora ou simplificado
+- **Transactional Outbox.** O evento é publicado depois do commit. Se o broker não confirmar em 5s, o evento se perde (fica registrado em log e na métrica `corridas_event_publish_failures_total`). O cache se corrige no próximo MISS, mas o histórico no Mongo fica com um buraco. Próximo passo: tabela `outbox` na mesma transação e um relay publicando com confirm.
+- **Rate limiting.** Não implementado, de propósito, para o k6 medir a aplicação e não o limitador. Em produção: `@nestjs/throttler` com storage Redis, chaveado por `sub` do token.
+- **JWKS / rotação de chave.** A chave pública é estática, então trocar a chave exige redeploy.
+- **Migrations no boot da API.** Simples para o desafio. Com várias réplicas, as migrations deveriam rodar num Job separado antes do rollout (hoje o TypeORM usa lock, mas atrasa o startup).
+- **Backoff de retry fixo (1s).** Um backoff exponencial de verdade pediria filas de retry com TTL. A DLQ não tem ferramenta de reprocessamento; o "shovel" é manual pelo painel.
+- **UI sem testes automatizados.** O CI faz lint e build. O fluxo da UI foi validado manualmente.
+- **Replay idempotente devolve o estado atual**, não o corpo original da resposta.
+- **Observabilidade no Kubernetes.** Os manifests não sobem Prometheus nem Jaeger no kind (o OTel fica desligado lá). A regra está pronta como `PrometheusRule`, para um cluster com Prometheus Operator.
+- **Sem TLS nem autenticação forte** em Redis e Mongo, e senhas de desenvolvimento no `docker-compose.yml` (marcadas como `*_dev_only`). No k8s as credenciais vêm de Secret gerado fora do repositório.
+
+## Riscos conhecidos
+- **Consistência eventual do GET.** Entre o PATCH e o processamento do evento, um GET com cache HIT pode mostrar o status anterior. A janela é o atraso da fila e é coberta pelo alerta `CorridasStatusPipelineStalled`.
+- **Topologia duplicada** entre API e worker: se alguém mudar os argumentos da fila de um lado só, o broker recusa a declaração (`PRECONDITION_FAILED`) e o serviço não consegue publicar ou consumir.
+- **Vulnerabilidades moderadas** no `glob`/`minimatch` usados internamente pelo TypeORM 0.3 (só somem migrando para o TypeORM 1.x, que é breaking). As "high" foram zeradas, inclusive com override do `multer` para 2.5.0.
+- **Ordem de eventos** é garantida só para o cache (CAS por versão). O histórico grava na ordem de chegada; a ordem lógica vem do campo `version`.
+
+## O que eu faria com mais tempo
+1. Outbox + relay, com teste de caos derrubando o broker no meio do POST.
+2. Endpoint `GET /corridas/:id/historico` lendo do Mongo, para a auditoria ficar consultável.
+3. Teste de contrato do envelope do evento compartilhado entre API e worker (hoje o formato está duplicado em dois `types`).
+4. Testes de UI (Vitest + Testing Library) e um e2e de navegador (Playwright).
+5. Dashboards Grafana versionados e SLOs formais (burn rate) no lugar do limiar fixo de 5%.
+6. Prometheus Operator + Jaeger no kind para fechar a observabilidade também no cluster.
