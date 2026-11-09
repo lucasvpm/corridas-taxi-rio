@@ -1,4 +1,12 @@
-# Ambiente local. Todas as senhas aqui são de DESENVOLVIMENTO/TESTE.
+# Ambiente completo do desafio. Todas as senhas aqui são de DESENVOLVIMENTO/TESTE.
+#   docker compose up -d --build
+# UI http://localhost:5173 · API http://localhost:3000 · RabbitMQ http://localhost:15672
+# Prometheus http://localhost:9090 · Jaeger http://localhost:16686
+
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  OTEL_TRACES_SAMPLER: parentbased_always_on
+
 services:
 
   mysql:
@@ -56,6 +64,100 @@ services:
       interval: 10s
       timeout: 10s
       retries: 12
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+
+  api:
+    build: ./api
+    environment:
+      <<: *otel
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: corridas
+      DB_PASSWORD: corridas_dev_only
+      DB_NAME: corridas
+      REDIS_URL: redis://redis:6379
+      AMQP_URL: amqp://corridas:corridas_dev_only@rabbitmq:5672
+      JWT_PUBLIC_KEY_PATH: /run/keys/jwt-public.pem
+      OTEL_SERVICE_NAME: corridas-api
+    volumes:
+      # Só a chave PÚBLICA entra na API.
+      - ./scripts/test-keys/public.pem:/run/keys/jwt-public.pem:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  worker:
+    build: ./worker
+    environment:
+      <<: *otel
+      PORT: 3001
+      AMQP_URL: amqp://corridas:corridas_dev_only@rabbitmq:5672
+      REDIS_URL: redis://redis:6379
+      MONGO_URL: mongodb://mongo:27017
+      OTEL_SERVICE_NAME: corridas-worker
+    ports:
+      - "3001:3001"
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  ui:
+    build: ./ui
+    ports:
+      - "5173:8080"
+    depends_on:
+      api: { condition: service_healthy }
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+      - worker
+
+  # Teste de carga: docker compose --profile loadtest run --rm k6
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: ["loadtest"]
+    environment:
+      BASE_URL: http://api:3000
+    volumes:
+      - ./loadtest:/scripts:ro
+      - ./scripts/test-keys:/keys:ro
+    command: ["run", "/scripts/corridas.js"]
+    depends_on:
+      api: { condition: service_healthy }
 
 volumes:
   mysql-data:
