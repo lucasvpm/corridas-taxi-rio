@@ -75,6 +75,9 @@ describe('worker (e2e, infra real)', () => {
     await eventually(async () => {
       try {
         const probe = await conn.createChannel();
+        // checkQueue de fila inexistente fecha o canal com 404 e o amqplib emite 'error';
+        // sem listener isso vira "Unhandled error" e derruba a suíte.
+        probe.on('error', () => undefined);
         await probe.checkQueue(process.env.WORKER_QUEUE!);
         await probe.close();
         return true;
