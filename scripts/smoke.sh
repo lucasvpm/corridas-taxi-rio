@@ -44,6 +44,10 @@ echo "== Leitura"
 check "outro passageiro lendo → 404" 404 "$(code -H "Authorization: Bearer $PASSAGEIRO_2" "$API/corridas/$ID")"
 check "passageiro tentando mudar status → 403" 403 "$(code -X PATCH -H "Authorization: Bearer $PASSAGEIRO" -H 'Content-Type: application/json' -d '{"status":"ACEITA"}' "$API/corridas/$ID/status")"
 
+echo "== Lista do motorista"
+check "motorista vê a corrida nova nas disponíveis" 1 "$(curl -s -H "Authorization: Bearer $MOTORISTA" "$API/motorista/corridas" | grep -c "\"id\":\"$ID\"")"
+check "passageiro vendo a lista do motorista → 403" 403 "$(code -H "Authorization: Bearer $PASSAGEIRO" "$API/motorista/corridas")"
+
 echo "== Status (motorista)"
 for s in ACEITA EM_ANDAMENTO FINALIZADA; do
   check "PATCH $s → 200" 200 "$(code -X PATCH -H "Authorization: Bearer $MOTORISTA" -H 'Content-Type: application/json' -d "{\"status\":\"$s\"}" "$API/corridas/$ID/status")"
