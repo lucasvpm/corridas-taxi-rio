@@ -92,6 +92,22 @@ Formato: **Contexto · Alternativas · Decisão · Trade-off aceito.**
 **Decisão.**
 - **RS256 com chave pública em arquivo** montado na API. JWKS faz sentido quando existe um emissor real (IdP) e rotação de chaves. Aqui o emissor é um script de teste, e subir um servidor JWKS só para servir um arquivo seria cerimônia. A API fixa `algorithms: ['RS256']` (evita *algorithm confusion*) e valida `exp`, `iss` e `aud`.
 - **Papel errado → 403** (motorista criando, passageiro alterando status). **Corrida de outro passageiro → 404**, para não confirmar a existência do recurso (IDOR). A skill de segurança que usei dizia "sempre 404"; adaptei, porque o enunciado exige o 403 para violação de papel.
-- Interpretação do enunciado: "motorista só altera status" foi lido de forma estrita. O motorista **não lê** corrida via GET (recebe 403). Na UI ele informa o ID da corrida.
+- Interpretação do enunciado: "motorista só altera status" foi lido de forma estrita. O motorista **não lê** corrida via `GET /corridas/:id` (recebe 403). Na primeira versão da UI ele informava o ID da corrida; a entrada 8 abriu uma exceção mínima para ele ver a lista do que pode aceitar.
 
 **Trade-off.** Rotacionar a chave exige redeploy, o que não aconteceria com JWKS. Com JWKS, bastaria publicar a chave nova. A troca é localizada: só a `JwtStrategy` muda (por exemplo, para `passport-jwt` + `jwks-rsa`).
+
+---
+
+## 8. O motorista enxerga as corridas disponíveis?
+
+**Contexto.** Com a leitura estrita da entrada 7, o motorista não lia nenhuma corrida e precisava colar na UI o ID copiado da tela do passageiro. No uso real isso não existe: o motorista só aceita o que consegue ver. O enunciado diz que o motorista "só altera status", e permite escolher uma interpretação razoável quando algo é ambíguo, desde que registrada aqui.
+
+**Alternativas.**
+- **Manter a leitura estrita** (colar o ID): fiel ao texto, mas a tela fica artificial e a demonstração depende de copiar e colar UUID.
+- **Liberar o `GET /corridas/:id` e o `GET /corridas` para o motorista:** simples, mas entrega o `passageiro_id` e qualquer corrida a qualquer motorista.
+- **Rota própria, só leitura e com o mínimo** (a escolhida).
+- **Push em vez de polling** (WebSocket ou SSE com o worker avisando): melhor experiência, mas exige conexões abertas e um canal worker → API. Fica para depois.
+
+**Decisão.** `GET /motorista/corridas` (só `motorista`) devolve duas listas: `em_curso` (as dele, `ACEITA` ou `EM_ANDAMENTO`) e `disponiveis` (todas as `SOLICITADA`, até 50, mais recentes primeiro). Cada item traz o `proximo_status`, calculado pela mesma máquina de estados do PATCH, então a UI não repete as regras. **Nenhum item tem `passageiro_id`.** A resposta do PATCH passou a usar essa mesma visão, porque não fazia sentido esconder o passageiro na lista e mostrar na resposta da ação. O `GET /corridas/:id` continua dando 403 para o motorista. A lista lê do MySQL (o cache guarda corridas individuais, não listas), com dois índices novos numa migration: `(status, created_at)` e `(motorista_id, status)`. Dois motoristas aceitando a mesma corrida continuam caindo no UPDATE condicional (um 200, um 409), e a UI traduz esse 409 como "outro motorista aceitou antes de você".
+
+**Trade-off.** A regra "motorista só altera status" ganha uma exceção de leitura, limitada ao que é necessário para aceitar. Sem localização não existe despacho de verdade: todos os motoristas veem todas as corridas abertas, e a ordem "mais recentes primeiro" foi escolhida para que um pedido novo sempre apareça, não por justiça com quem espera há mais tempo. A UI consulta a cada 2 s, o que é uma consulta indexada por motorista conectado; com muitos motoristas, o caminho seria push ou um cache curto da lista.

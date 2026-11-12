@@ -57,7 +57,7 @@ M1=$(sed -n 's/.*"motorista_1": "\([^"]*\)".*/\1/p' scripts/test-keys/tokens.jso
 
 ## 3. Validar o fluxo
 
-**Roteiro automático** (só precisa de bash + curl), que verifica 401/401/401/200, 403, idempotência, 404, PATCH ×3, 409 e o GET servido pelo cache:
+**Roteiro automático** (só precisa de bash + curl), que verifica 401/401/401/200, 403, idempotência, 404, a lista do motorista, PATCH ×3, 409 e o GET servido pelo cache:
 
 ```bash
 bash scripts/smoke.sh
@@ -83,6 +83,10 @@ curl -i -X POST http://localhost:3000/corridas -H "Authorization: Bearer $M1" \
   -H "Content-Type: application/json" -H "Idempotency-Key: x" -d '{"origem":"A","destino":"B"}'
 
 ID=<id retornado no POST>
+# 200: lista do motorista (em_curso + disponiveis, sem dados do passageiro) · 403 para passageiro
+curl -i http://localhost:3000/motorista/corridas -H "Authorization: Bearer $M1"
+curl -i http://localhost:3000/motorista/corridas -H "Authorization: Bearer $P1"
+
 # 200: motorista aceita / inicia / finaliza
 curl -i -X PATCH http://localhost:3000/corridas/$ID/status -H "Authorization: Bearer $M1" \
   -H "Content-Type: application/json" -d '{"status":"ACEITA"}'
@@ -95,7 +99,7 @@ curl -i http://localhost:3000/corridas/$ID -H "Authorization: Bearer $P1"
 curl -i http://localhost:3000/corridas/$ID -H "Authorization: Bearer $P2"
 ```
 
-**Pela UI** (http://localhost:5173): cole o token `passageiro_1` e crie uma corrida. Em outra aba, cole o `motorista_1`, informe o ID e use Aceitar, Iniciar e Finalizar. A lista do passageiro atualiza sozinha.
+**Pela UI** (http://localhost:5173): cole o token `passageiro_1` e crie uma corrida. Em outra aba, cole o `motorista_1`: a corrida aparece em *Corridas disponíveis*, e os botões Aceitar, Iniciar e Finalizar seguem o fluxo. As duas telas atualizam sozinhas a cada 2 s. Com `motorista_1` e `motorista_2` em abas diferentes, clicar em Aceitar na mesma corrida mostra a concorrência otimista: um aceita e o outro recebe "outro motorista aceitou esta corrida antes de você" (409).
 
 **Ver o worker em ação:**
 
@@ -119,8 +123,8 @@ cd ui     && npm ci && npm run lint && npm run build && cd ..
 ```
 
 O que está coberto:
-- **API, unit:** máquina de estados (todas as transições válidas e inválidas).
-- **API, e2e:** fluxo feliz completo; 401 sem token, com assinatura inválida, expirado e com role desconhecido; 403 por papel; 404 em corrida alheia; idempotência (replay, 5 POSTs concorrentes com a mesma chave → 1 linha, 422 com payload diferente); 409 em transição inválida e em dois motoristas aceitando ao mesmo tempo; eventos publicados com envelope e `correlation_id`; `/metrics`.
+- **API, unit:** máquina de estados (todas as transições válidas e inválidas, e o próximo status sugerido ao motorista).
+- **API, e2e:** fluxo feliz completo; 401 sem token, com assinatura inválida, expirado e com role desconhecido; 403 por papel; 404 em corrida alheia; idempotência (replay, 5 POSTs concorrentes com a mesma chave → 1 linha, 422 com payload diferente); 409 em transição inválida e em dois motoristas aceitando ao mesmo tempo; lista do motorista (corrida nova nas disponíveis, aceita vai para "em curso" de quem aceitou e some para os outros, sem `passageiro_id`, 403 para passageiro); eventos publicados com envelope e `correlation_id`; `/metrics`.
 - **Worker, unit:** validação do envelope.
 - **Worker, e2e:** a mesma mensagem duas vezes gera 1 documento; evento antigo fora de ordem não sobrescreve o cache; mensagem malformada vai para a DLQ e a fila continua andando.
 
