@@ -429,4 +429,85 @@ describe('corridas (e2e, infra real)', () => {
       expect(res.text).toContain('http_request_duration_seconds_bucket');
     });
   });
+  describe('lista do motorista', () => {
+    type ItemLista = Record<string, any>;
+
+    /** Busca o painel do motorista (corridas em curso e disponíveis). */
+    async function painel(motorista: Identity) {
+      const res = await request(http)
+        .get('/motorista/corridas')
+        .set('Authorization', `Bearer ${motorista.token}`)
+        .expect(200);
+      return res.body as { em_curso: ItemLista[]; disponiveis: ItemLista[] };
+    }
+
+    /** Ids de uma lista do painel. */
+    const ids = (lista: ItemLista[]) => lista.map((c) => c.id as string);
+
+    it('mostra a corrida nova nas disponíveis com o próximo status e sem dados do passageiro', async () => {
+      const corrida = await criarCorrida(newPassageiro());
+      const { disponiveis } = await painel(newMotorista());
+      const item = disponiveis.find((c) => c.id === corrida.id);
+      expect(item).toMatchObject({
+        origem: 'Copacabana',
+        destino: 'Centro',
+        status: 'SOLICITADA',
+        version: 1,
+        proximo_status: 'ACEITA',
+      });
+      expect(item).not.toHaveProperty('passageiro_id');
+      expect(item).not.toHaveProperty('idempotency_key');
+    });
+
+    it('leva a corrida aceita para "em curso" de quem aceitou e a tira das disponíveis de todos', async () => {
+      const corrida = await criarCorrida(newPassageiro());
+      const motorista = newMotorista();
+      const outro = newMotorista();
+      await patchStatus(motorista, corrida.id, 'ACEITA').expect(200);
+
+      const meu = await painel(motorista);
+      expect(meu.em_curso.find((c) => c.id === corrida.id)).toMatchObject({
+        status: 'ACEITA',
+        motorista_id: motorista.sub,
+        proximo_status: 'EM_ANDAMENTO',
+      });
+      expect(ids(meu.disponiveis)).not.toContain(corrida.id);
+
+      const deOutro = await painel(outro);
+      expect(ids(deOutro.em_curso)).not.toContain(corrida.id);
+      expect(ids(deOutro.disponiveis)).not.toContain(corrida.id);
+    });
+
+    it('tira a corrida da lista quando ela é finalizada', async () => {
+      const corrida = await criarCorrida(newPassageiro());
+      const motorista = newMotorista();
+      for (const status of ['ACEITA', 'EM_ANDAMENTO', 'FINALIZADA']) {
+        await patchStatus(motorista, corrida.id, status).expect(200);
+      }
+      const { em_curso, disponiveis } = await painel(motorista);
+      expect(ids(em_curso)).not.toContain(corrida.id);
+      expect(ids(disponiveis)).not.toContain(corrida.id);
+    });
+
+    it('retorna 403 quando passageiro tenta ver a lista do motorista', async () => {
+      await request(http)
+        .get('/motorista/corridas')
+        .set('Authorization', `Bearer ${newPassageiro().token}`)
+        .expect(403);
+    });
+
+    it('não devolve dados do passageiro na resposta do PATCH', async () => {
+      const corrida = await criarCorrida(newPassageiro());
+      const res = await patchStatus(
+        newMotorista(),
+        corrida.id,
+        'ACEITA',
+      ).expect(200);
+      expect(res.body).toMatchObject({
+        status: 'ACEITA',
+        proximo_status: 'EM_ANDAMENTO',
+      });
+      expect(res.body).not.toHaveProperty('passageiro_id');
+    });
+  });
 });

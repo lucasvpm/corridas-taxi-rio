@@ -8,6 +8,7 @@ import { validateEnv } from './config/env.validation';
 import { Corrida } from './corridas/corrida.entity';
 import { CorridasModule } from './corridas/corridas.module';
 import { CreateCorridas1731100000000 } from './database/migrations/1731100000000-CreateCorridas';
+import { AddIndicesMotorista1731200000000 } from './database/migrations/1731200000000-AddIndicesMotorista';
 import { HealthModule } from './health/health.module';
 import { MetricsController } from './observability/metrics.controller';
 
@@ -46,7 +47,10 @@ type RequestWithCorrelation = IncomingMessage & { correlationId?: string };
         password: config.getOrThrow<string>('DB_PASSWORD'),
         database: config.getOrThrow<string>('DB_NAME'),
         entities: [Corrida],
-        migrations: [CreateCorridas1731100000000],
+        migrations: [
+          CreateCorridas1731100000000,
+          AddIndicesMotorista1731200000000,
+        ],
         // Migrations rodam no boot (simples para o desafio). Em produção seria um Job separado.
         migrationsRun: true,
         synchronize: false,

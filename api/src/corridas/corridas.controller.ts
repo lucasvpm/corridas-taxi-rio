@@ -12,7 +12,11 @@ import {
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser, IdempotencyKey, Roles } from '../auth/decorators';
-import { CorridaView } from './corrida.view';
+import {
+  CorridaMotoristaView,
+  CorridaView,
+  toCorridaMotoristaView,
+} from './corrida.view';
 import { CorridasService } from './corridas.service';
 import { CreateCorridaDto, UpdateStatusDto } from './dto';
 
@@ -63,14 +67,16 @@ export class CorridasController {
     return corrida;
   }
 
-  /** Aceita/inicia/finaliza uma corrida (motorista). */
+  /** Aceita/inicia/finaliza uma corrida (motorista). Responde com a visão do motorista, sem dados do passageiro. */
   @Patch(':id/status')
   @Roles('motorista')
-  updateStatus(
+  async updateStatus(
     @CurrentUser() user: AuthUser,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateStatusDto,
-  ): Promise<CorridaView> {
-    return this.corridas.updateStatus(user, id, dto.status);
+  ): Promise<CorridaMotoristaView> {
+    return toCorridaMotoristaView(
+      await this.corridas.updateStatus(user, id, dto.status),
+    );
   }
 }

@@ -1,4 +1,4 @@
-import { CorridaStatus, podeTransitar } from './corrida-status';
+import { CorridaStatus, podeTransitar, proximoStatus } from './corrida-status';
 
 describe('podeTransitar', () => {
   const { SOLICITADA, ACEITA, EM_ANDAMENTO, FINALIZADA } = CorridaStatus;
@@ -29,5 +29,28 @@ describe('podeTransitar', () => {
       podeTransitar(FINALIZADA, s),
     );
     expect(destinos).toEqual([]);
+  });
+});
+
+describe('proximoStatus', () => {
+  const { SOLICITADA, ACEITA, EM_ANDAMENTO, FINALIZADA } = CorridaStatus;
+
+  it.each([
+    [SOLICITADA, ACEITA],
+    [ACEITA, EM_ANDAMENTO],
+    [EM_ANDAMENTO, FINALIZADA],
+  ])('depois de %s vem %s', (atual, proximo) => {
+    expect(proximoStatus(atual)).toBe(proximo);
+  });
+
+  it('não existe próximo status depois de FINALIZADA', () => {
+    expect(proximoStatus(FINALIZADA)).toBeNull();
+  });
+
+  it('nunca sugere uma transição que a máquina de estados recusaria', () => {
+    const sugeridas = Object.values(CorridaStatus)
+      .map((s) => [s, proximoStatus(s)] as const)
+      .filter(([, p]) => p !== null);
+    expect(sugeridas.every(([s, p]) => podeTransitar(s, p!))).toBe(true);
   });
 });

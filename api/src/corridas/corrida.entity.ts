@@ -17,6 +17,8 @@ import { CorridaStatus } from './corrida-status';
   unique: true,
 })
 @Index('idx_corridas_passageiro_created', ['passageiroId', 'createdAt'])
+@Index('idx_corridas_status_created', ['status', 'createdAt'])
+@Index('idx_corridas_motorista_status', ['motoristaId', 'status'])
 export class Corrida {
   @PrimaryColumn({ type: 'char', length: 36 })
   id!: string;

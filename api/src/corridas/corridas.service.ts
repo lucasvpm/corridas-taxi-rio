@@ -7,15 +7,24 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 import { AuthUser } from '../auth/auth-user';
 import { CorridaCacheService } from '../cache/corrida-cache.service';
 import { EventPublisher } from '../messaging/event-publisher.service';
 import { ROUTING_KEYS } from '../messaging/topology';
 import { cacheReads } from '../observability/metrics';
 import { Corrida } from './corrida.entity';
-import { CorridaStatus, podeTransitar } from './corrida-status';
-import { CorridaView, toCorridaView } from './corrida.view';
+import {
+  CorridaStatus,
+  podeTransitar,
+  STATUS_EM_CURSO,
+} from './corrida-status';
+import {
+  CorridaView,
+  PainelMotoristaView,
+  toCorridaMotoristaView,
+  toCorridaView,
+} from './corrida.view';
 import { CreateCorridaDto } from './dto';
 
 export interface CreateResult {
@@ -187,5 +196,32 @@ export class CorridasService {
       atual.status,
     );
     return view;
+  }
+
+  /**
+   * Painel do motorista: as corridas que ele está atendendo e as que esperam alguém aceitar.
+   * Disponíveis vêm das mais recentes para as mais antigas: sem localização não existe critério
+   * real de despacho, e assim um pedido novo sempre aparece (ver DECISIONS.md, entrada 8).
+   * Lê do MySQL, como a lista do passageiro: o cache guarda corridas individuais, não listas.
+   */
+  async painelMotorista(user: AuthUser): Promise<PainelMotoristaView> {
+    const [emCurso, disponiveis] = await Promise.all([
+      this.repo.find({
+        where: { motoristaId: user.sub, status: In([...STATUS_EM_CURSO]) },
+        order: { createdAt: 'ASC' },
+        take: 50,
+      }),
+      this.repo.find({
+        where: { status: CorridaStatus.SOLICITADA },
+        order: { createdAt: 'DESC' },
+        take: 50,
+      }),
+    ]);
+    const paraMotorista = (c: Corrida) =>
+      toCorridaMotoristaView(toCorridaView(c));
+    return {
+      em_curso: emCurso.map(paraMotorista),
+      disponiveis: disponiveis.map(paraMotorista),
+    };
   }
 }

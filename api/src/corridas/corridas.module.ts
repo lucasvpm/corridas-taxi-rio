@@ -5,11 +5,12 @@ import { MessagingModule } from '../messaging/messaging.module';
 import { Corrida } from './corrida.entity';
 import { CorridasController } from './corridas.controller';
 import { CorridasService } from './corridas.service';
+import { MotoristaController } from './motorista.controller';
 
 /** Módulo de corridas: entidade, regras de negócio e endpoints. */
 @Module({
   imports: [TypeOrmModule.forFeature([Corrida]), CacheModule, MessagingModule],
-  controllers: [CorridasController],
+  controllers: [CorridasController, MotoristaController],
   providers: [CorridasService],
 })
 export class CorridasModule {}
