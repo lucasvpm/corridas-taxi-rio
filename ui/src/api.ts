@@ -12,6 +12,25 @@ export interface Corrida {
   updated_at: string
 }
 
+/** Corrida como o motorista vê: sem dados do passageiro e com o próximo status permitido. */
+export interface CorridaMotorista {
+  id: string
+  motorista_id: string | null
+  origem: string
+  destino: string
+  status: Status
+  version: number
+  created_at: string
+  updated_at: string
+  proximo_status: Status | null
+}
+
+/** Painel do motorista: corridas que ele está atendendo e corridas esperando alguém aceitar. */
+export interface PainelMotorista {
+  em_curso: CorridaMotorista[]
+  disponiveis: CorridaMotorista[]
+}
+
 /** Erro HTTP da API com o status e a mensagem devolvida. */
 export class ApiError extends Error {
   readonly status: number
@@ -54,9 +73,14 @@ export function listarCorridas(token: string) {
   return apiFetch<Corrida[]>(token, '/corridas')
 }
 
+/** Corridas em curso do motorista logado e corridas disponíveis para aceitar. */
+export function listarPainelMotorista(token: string) {
+  return apiFetch<PainelMotorista>(token, '/motorista/corridas')
+}
+
 /** Motorista muda o status de uma corrida. */
 export function alterarStatus(token: string, id: string, status: Status) {
-  return apiFetch<Corrida>(token, `/corridas/${encodeURIComponent(id)}/status`, {
+  return apiFetch<CorridaMotorista>(token, `/corridas/${encodeURIComponent(id)}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   })
