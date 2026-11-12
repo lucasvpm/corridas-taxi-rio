@@ -30,10 +30,10 @@ Formato: **Contexto · Alternativas · Decisão · Trade-off aceito.**
 - Exchange **`corridas` (topic, durável)**, com routing keys `corrida.criada` e `corrida.status_alterado`. Um consumidor novo cria a própria fila e faz o bind só no que interessa, sem mudar a API.
 - Fila **`worker.corridas` (quorum)**, com bind em `corrida.*`, `x-delivery-limit=5` e `x-dead-letter-exchange=corridas.dlx`.
 - **`corridas.dlx` (fanout) → `worker.corridas.dlq`**.
-- O worker trabalha com **ack manual e prefetch=10**. Mensagem malformada recebe `nack` sem requeue e vai direto para a DLQ. Erro transitório (Redis ou Mongo fora) recebe `nack` com requeue e 1s de backoff; na 6ª entrega o broker manda para a DLQ sozinho.
+- O worker trabalha com **ack manual e prefetch=10**. Mensagem malformada recebe `nack` sem requeue e vai direto para a DLQ. Erro transitório (Redis ou Mongo fora) recebe `nack` com requeue depois de um backoff exponencial pelo `x-delivery-count` (2s, 4s, 8s, 16s, teto de 30s); na 6ª entrega o broker manda para a DLQ sozinho.
 - A topologia é declarada **pela API e pelo worker** (declarações são idempotentes). Assim, se a API subir e publicar antes do worker existir, a mensagem não é descartada como "unroutable".
 
-**Trade-off.** Os argumentos da fila ficam duplicados em dois serviços, e precisam ser idênticos, senão o broker recusa com `PRECONDITION_FAILED`. Ficou comentado nos dois arquivos `topology.ts`. O backoff de 1s é fixo; um backoff exponencial de verdade pediria filas de retry com TTL.
+**Trade-off.** Os argumentos da fila ficam duplicados em dois serviços, e precisam ser idênticos, senão o broker recusa com `PRECONDITION_FAILED`. Ficou comentado nos dois arquivos `topology.ts`. O backoff é feito segurando a mensagem no processo antes do `nack`, o que ocupa um lugar do prefetch durante a espera; filas de retry com TTL tirariam essa espera do worker (ver LIMITES.md).
 
 ---
 
